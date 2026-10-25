@@ -9,7 +9,7 @@ export function AudioModePicker({ mode, onChange }: { mode: AudioMode; onChange:
       <option value="system">Entire system audio (includes Discord)</option>
     </select>
     <p>{mode === 'window'
-      ? 'Choose the game window and enable its audio in the browser picker. Full-screen system audio is blocked to avoid sharing Discord voices.'
+      ? 'In Chrome, choose the game window and select "share this window’s audio". If only "system audio" appears, leave it unchecked: it can repeat Discord voices.'
       : mode === 'system'
         ? 'This can send Discord voices back to people in your call.'
         : 'Your viewers will receive video without sound.'}</p>
