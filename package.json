@@ -10,7 +10,7 @@
     "dev:web": "vite --config apps/web/vite.config.ts --host 127.0.0.1",
     "build": "tsc -b && vite build --config apps/web/vite.config.ts",
     "start": "node apps/server/dist/index.js",
-    "test": "node --import tsx --test apps/server/test/*.test.ts",
+    "test": "node --import tsx --test apps/server/test/*.test.ts apps/web/test/*.test.ts",
     "check": "tsc -b"
   },
   "dependencies": {

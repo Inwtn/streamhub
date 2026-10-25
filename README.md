@@ -54,6 +54,12 @@ For live source changes, run `npm.cmd run dev` and open <http://127.0.0.1:5173>.
 
 The fragment after `#invite=` grants viewer access. The host credential is different and remains in that browser tab's `sessionStorage`. Do not share a host code. Anyone with a valid viewer invite can occupy an available viewer slot.
 
+### Keep voice chat out of game audio
+
+Before selecting **Share screen**, choose **Selected window or tab only** in **Audio to share**. Select the game window in the browser picker and enable that window's audio if offered. This mode requests window audio, excludes full-system audio, and discards audio if the browser returns a full-display capture. It prevents the usual Discord voice echo when window audio is supported. Browser audio support varies; if no audio track is available, viewers receive video without sound.
+
+**Entire system audio** is an explicit opt-in and may include Discord voices. **No audio** sends video only. If your browser cannot capture the game's window audio, isolating game audio requires a separate audio input or virtual audio routing; the browser cannot reliably extract one app from an already mixed system-audio track. See [MDN's screen capture options](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia).
+
 ## Access from another network
 
 For a temporary test from your own PC, install [cloudflared](https://developers.cloudflare.com/tunnel/downloads/) and keep the StreamHub server running. In a second terminal run:

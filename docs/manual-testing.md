@@ -7,6 +7,8 @@ Use current Chrome or Edge on Windows 10/11. Open developer tools in the host an
 | Tab capture | Create a room, select **Share screen**, choose a browser tab, and enable tab audio if offered. | Local preview and remote video appear. If audio was captured, the host mute button is enabled. |
 | Display capture | Stop, then share an entire display. | Preview and remote video appear; system audio may be unavailable. |
 | Window or game | Share a window or game. | Video appears remotely; protected or exclusive fullscreen content may fail. |
+| Voice chat isolation | With **Selected window or tab only**, share the game window while someone speaks in Discord. | Viewers hear the game's window audio, if the browser supports it, without hearing the Discord voice again. If the browser offers only system audio, no isolated game audio is available. |
+| Full display guard | Keep **Selected window or tab only** and choose an entire display. | The app drops any returned monitor audio so Discord voices are not forwarded. |
 | Two to five viewers | Open the same invite in separate private browser profiles. | Each viewer receives a stream; a sixth viewer is rejected. |
 | Late join | Start streaming before the viewer joins. | The new viewer receives video without restarting capture. |
 | Reconnect | Briefly disconnect and reconnect a viewer's network. | Socket.IO reconnects and peers renegotiate while the ticket remains valid. |
