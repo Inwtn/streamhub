@@ -1,0 +1,5 @@
+{
+  "compilerOptions": { "composite": true, "declaration": true, "outDir": "dist", "rootDir": "src", "module": "NodeNext", "moduleResolution": "NodeNext", "target": "ES2022", "strict": true, "esModuleInterop": true, "skipLibCheck": true, "types": ["node"] },
+  "include": ["src"],
+  "references": [{ "path": "../../packages/shared" }]
+}
