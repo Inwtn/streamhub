@@ -74,6 +74,14 @@ Quick Tunnel URLs change when the tunnel restarts. Update `PUBLIC_ORIGIN` and re
 
 The tunnel makes the local web server reachable through an outbound connection. You do not need to expose port 3001 on the router for the tunnel. Direct WebRTC connectivity still depends on both networks.
 
+## Public site on Render
+
+The repository includes `render.yaml` for a single Render web service. Create a Render Blueprint from this repository and select the free service plan shown in the file. Render builds the frontend and server, provides an HTTPS `onrender.com` URL, and runs Node.js for you. No local Node.js process or Cloudflare Tunnel is needed after deployment. The server uses Render's `PORT` and `RENDER_EXTERNAL_URL` automatically; set `PUBLIC_ORIGIN` only if you later use a custom domain. Leave Discord bot and TURN variables unset unless you configure those services separately.
+
+Anyone can open the public site, create a room, share a screen after granting browser permission, and send the room invite. Viewers only need the invite link and a compatible browser. The host's browser and computer must remain active while sharing. The server carries room state and signaling; media remains peer to peer when a direct connection is possible.
+
+The free Render service [spins down after 15 minutes without incoming traffic](https://render.com/docs/free/) and may take about a minute to wake. Rooms are stored only in memory, so a restart or spin-down clears them. A room with active Socket.IO traffic should stay awake, but the free plan is intended for testing and hobby use rather than guaranteed availability. Restrictive network pairs may need a TURN relay; the current configuration provides STUN only. Before inviting a wider public audience, add persistent room storage and a TURN service, then test the expected load and hosting costs.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and edit the local copy. `.env` is ignored by Git.
