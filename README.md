@@ -1,5 +1,7 @@
 # StreamHub
 
+[Open the public site](https://streamhub-inwtn.onrender.com/) to create a room or join with an invite. The free hosting instance may take about a minute to wake after inactivity.
+
 Self-hosted screen sharing for a small private group. One host shares a browser tab, window, or display with up to five viewers. The web app runs on your computer or server; WebRTC carries media between browsers. The Node.js server manages rooms and exchanges connection messages. StreamHub does not record streams.
 
 ## Features
