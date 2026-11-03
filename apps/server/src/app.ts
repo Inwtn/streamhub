@@ -70,6 +70,7 @@ export function makeApp(config: Config): { app: Express; httpServer: HttpServer;
     if (!room || !participant) return socket.disconnect(true);
     if (participant.socketId) io.sockets.sockets.get(participant.socketId)?.disconnect(true);
     participant.socketId = socket.id;
+    participant.voice = false;
     room.lastActive = Date.now();
     socket.join(room.id);
     broadcast(room);
@@ -82,6 +83,12 @@ export function makeApp(config: Config): { app: Express; httpServer: HttpServer;
     socket.on('stream-state', (live: unknown) => {
       if (participant.role !== 'host' || typeof live !== 'boolean') return;
       room.live = live;
+      room.lastActive = Date.now();
+      broadcast(room);
+    });
+    socket.on('voice-state', (active: unknown) => {
+      if (participant.socketId !== socket.id || typeof active !== 'boolean') return;
+      participant.voice = active;
       room.lastActive = Date.now();
       broadcast(room);
     });
@@ -101,9 +108,27 @@ export function makeApp(config: Config): { app: Express; httpServer: HttpServer;
       io.to(target.socketId).emit('signal', { from: participant.id, ...(validDescription ? { description } : {}), ...(validCandidate ? { candidate } : {}) });
       room.lastActive = Date.now();
     });
+    socket.on('voice-signal', (data: unknown) => {
+      if (Date.now() - signalWindow > 10_000) { signalWindow = Date.now(); signalCount = 0; }
+      if (++signalCount > 120 || participant.socketId !== socket.id || !participant.voice || !data || typeof data !== 'object') return;
+      const d = data as Record<string, unknown>;
+      if (typeof d.to !== 'string' || !d.to || d.to === participant.id) return;
+      const target = room.participants.get(d.to);
+      if (!target?.socketId || !target.voice) return;
+      const description = d.description as Record<string, unknown> | undefined;
+      const candidate = d.candidate as Record<string, unknown> | undefined;
+      const validDescription = description &&
+        ((description.type === 'offer' && participant.id < target.id) || (description.type === 'answer' && participant.id > target.id)) &&
+        typeof description.sdp === 'string' && description.sdp.length < 200_000;
+      const validCandidate = candidate && typeof candidate.candidate === 'string' && candidate.candidate.length < 10_000;
+      if (!validDescription && !validCandidate) return;
+      io.to(target.socketId).emit('voice-signal', { from: participant.id, ...(validDescription ? { description } : {}), ...(validCandidate ? { candidate } : {}) });
+      room.lastActive = Date.now();
+    });
     socket.on('disconnect', () => {
       if (participant.socketId !== socket.id) return;
       participant.socketId = undefined;
+      participant.voice = false;
       if (participant.role === 'host') room.live = false;
       socket.to(room.id).emit('participant-left', { participantId: participant.id });
       broadcast(room);

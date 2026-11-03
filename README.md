@@ -9,6 +9,7 @@ Self-hosted screen sharing for a small private group. One host shares a browser 
 - Invite-only rooms with separate viewer and host credentials.
 - Screen video and optional audio when the browser provides an audio track.
 - A separate WebRTC peer connection per viewer, including late joiners.
+- Optional room voice calls: microphone join/leave, mute, speaker mute, and volume controls for every participant.
 - 720p/30, 720p/60, 1080p/30, and 1080p/60 capture targets. Actual output depends on the browser, source, network, and host hardware.
 - Connection state, RTT, packet loss, jitter, resolution, frame rate, and bitrate diagnostics. RTT is **not** end-to-end video latency.
 - Adaptive video bitrate when reported packet loss is high.
@@ -24,6 +25,8 @@ flowchart LR
 ```
 
 The server checks room permissions and forwards WebRTC offers, answers, and ICE candidates. It does not relay or store video and audio. The host uploads one media stream per viewer. A STUN server helps browsers discover a direct path; restrictive networks may require a separately operated TURN relay. The optional Cloudflare Tunnel described below carries the **site and signaling**, not WebRTC media.
+
+Voice calls use a separate set of WebRTC audio connections between participants. Joining or leaving voice does not renegotiate the existing screen stream. Each participant sends one microphone stream to each other participant in voice, so bandwidth grows with the number of speakers. Room invites grant access to both watching and joining the room's voice call; the microphone starts only after the user clicks **Join voice** and grants browser permission.
 
 ## Requirements
 
@@ -53,6 +56,12 @@ For live source changes, run `npm.cmd run dev` and open <http://127.0.0.1:5173>.
 3. Select **Copy invite** and send the complete `/room/...#invite=...` link to viewers.
 4. Viewers open the invite in Chrome or Edge, enter their names, and select **Watch stream**.
 5. Use **Stop stream** to stop capture or **Close room** to revoke the invite.
+
+### Talk in the room
+
+Everyone in the room can click **Join voice** to enable their microphone. Use the microphone button to mute yourself, the headphones button to mute incoming voices, or **Leave voice** to stop the microphone and voice connections. A separate slider controls voice volume. Screen sharing works independently and can continue while people enter or leave the voice call.
+
+Voice needs HTTPS or localhost for microphone permission. Chrome or Edge may require a click on **Enable voice audio** before remote voices play. If a pair cannot connect, both people can leave and rejoin voice; restrictive networks may need a TURN relay. The default screen-audio mode excludes full system audio. If you explicitly share full system audio while speaking in StreamHub, remote voices may be captured again and echo.
 
 The fragment after `#invite=` grants viewer access. The host credential is different and remains in that browser tab's `sessionStorage`. Do not share a host code. Anyone with a valid viewer invite can occupy an available viewer slot.
 
@@ -124,3 +133,5 @@ docs/                  Setup and manual testing guides
 ## Current limits
 
 Rooms and bot ownership are kept in memory and disappear when the server restarts. A Quick Tunnel URL disappears when cloudflared stops. There is no account system or recording. Each viewer requires a separate host upload, so five viewers can use considerable CPU and bandwidth. The quality presets and low latency are goals, not guarantees. Some network pairs will need TURN; a stable, always-on deployment also needs persistent hosting and a stable public URL.
+
+Voice calls currently use a small peer-to-peer mesh within the six-person room cap. Larger voice channels would need a media server; this implementation does not join Discord voice channels or use Discord's private voice protocol.

@@ -11,6 +11,10 @@ Use current Chrome or Edge on Windows 10/11. Open developer tools in the host an
 | Full display guard | Keep **Selected window or tab only** and choose an entire display. | The app drops any returned monitor audio so Discord voices are not forwarded. |
 | Two to five viewers | Open the same invite in separate private browser profiles. | Each viewer receives a stream; a sixth viewer is rejected. |
 | Late join | Start streaming before the viewer joins. | The new viewer receives video without restarting capture. |
+| Voice join | Host and viewer click **Join voice** and allow microphone access. | Both hear each other and the participant voice list updates. |
+| Voice mute | Mute the microphone on one side, then mute incoming voices on the other. | Microphone mute stops sending sound; speaker mute affects only local playback. |
+| Voice and screen | Start screen sharing, then join and leave voice on both sides. | Screen video and captured game audio continue without restarting or changing their WebRTC connection. |
+| Voice leave | Click **Leave voice** while the other person remains in voice. | The microphone track stops, the voice count falls, and the other browser closes its voice peer. |
 | Reconnect | Briefly disconnect and reconnect a viewer's network. | Socket.IO reconnects and peers renegotiate while the ticket remains valid. |
 | Stop capture | Select **Stop stream**. | Local tracks stop and remote players return to a waiting state. |
 | Close host tab | Close the host tab during a stream. | The server marks the room offline; viewers wait for the host. |

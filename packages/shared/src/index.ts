@@ -1,5 +1,5 @@
 export type Role = 'host' | 'viewer';
-export type Participant = { id: string; name: string; role: Role };
+export type Participant = { id: string; name: string; role: Role; voice: boolean };
 export type RoomView = { id: string; name: string; hostName: string; participants: Participant[]; live: boolean; maxViewers: number };
 export type Signal = { to: string; description?: { type: 'offer' | 'answer'; sdp: string }; candidate?: RTCIceCandidateInit };
 export type Quality = { label: string; width: number; height: number; frameRate: number; bitrate: number };

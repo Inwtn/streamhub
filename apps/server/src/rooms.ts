@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 export type Role = 'host' | 'viewer';
-export type Participant = { id: string; name: string; role: Role; socketId?: string };
+export type Participant = { id: string; name: string; role: Role; socketId?: string; voice: boolean };
 export type Room = { id: string; name: string; invite: string; ownerToken: string; hostName: string; participants: Map<string, Participant>; live: boolean; createdAt: number; lastActive: number };
 export type Ticket = { token: string; roomId: string; participantId: string; role: Role; expiresAt: number };
 const token = (bytes = 24) => randomBytes(bytes).toString('base64url');
@@ -32,7 +32,7 @@ export class RoomStore {
     const participantId = token(12);
     const ticket: Ticket = { token: token(), roomId, participantId, role, expiresAt: Date.now() + 24 * 60 * 60_000 };
     this.tickets.set(ticket.token, ticket);
-    room.participants.set(participantId, { id: participantId, name, role });
+    room.participants.set(participantId, { id: participantId, name, role, voice: false });
     room.lastActive = Date.now();
     return ticket;
   }
@@ -56,11 +56,11 @@ export class RoomStore {
     for (const [key, ticket] of this.tickets) if (ticket.roomId === roomId) this.tickets.delete(key);
   }
   sweep(now = Date.now()) {
-    for (const [id, room] of this.rooms) if (!room.live && now - room.lastActive > this.idleMs) this.close(id);
+    for (const [id, room] of this.rooms) if (!room.live && ![...room.participants.values()].some(p => p.socketId && p.voice) && now - room.lastActive > this.idleMs) this.close(id);
     for (const [key, ticket] of this.tickets) if (ticket.expiresAt < now) this.tickets.delete(key);
   }
   view(room: Room) {
     return { id: room.id, name: room.name, hostName: room.hostName, live: room.live, maxViewers: this.maxViewers,
-      participants: [...room.participants.values()].filter(p => p.socketId).map(({ id, name, role }) => ({ id, name, role })) };
+      participants: [...room.participants.values()].filter(p => p.socketId).map(({ id, name, role, voice }) => ({ id, name, role, voice })) };
   }
 }
