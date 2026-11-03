@@ -23,3 +23,18 @@ test('room credentials separate host and viewer permissions; capacity and expiry
   store.sweep(Date.now() + 1100);
   assert.equal(store.rooms.has(room.id), false);
 });
+
+test('an active voice call keeps a room open without screen sharing', () => {
+  const store = new RoomStore(2, 1000);
+  const room = store.create('Voice room', 'Host');
+  const ticket = store.authorize(room.id, room.ownerToken, 'host', 'Host');
+  assert.ok(ticket && typeof ticket !== 'string');
+  const participant = room.participants.get(ticket.participantId)!;
+  participant.socketId = 'connected-socket';
+  participant.voice = true;
+  store.sweep(Date.now() + 1100);
+  assert.equal(store.rooms.has(room.id), true);
+  participant.voice = false;
+  store.sweep(Date.now() + 1100);
+  assert.equal(store.rooms.has(room.id), false);
+});
