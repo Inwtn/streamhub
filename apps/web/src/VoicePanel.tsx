@@ -42,6 +42,7 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
   const [volume, setVolume] = useState(80);
   const [connected, setConnected] = useState(0);
   const [needsPlayback, setNeedsPlayback] = useState(false);
+  const [speakingIds, setSpeakingIds] = useState<string[]>([]);
   const [error, setError] = useState('');
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
@@ -52,8 +53,54 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
   const volumeRef = useRef(volume);
   const speakersMutedRef = useRef(speakersMuted);
   const mountedRef = useRef(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const metersRef = useRef(new Map<string, { source: MediaStreamAudioSourceNode; analyser: AnalyserNode; track: MediaStreamTrack }>());
+  const lastSpeechRef = useRef(new Map<string, number>());
+
+  const unwatchLevel = useCallback((id: string) => {
+    metersRef.current.get(id)?.source.disconnect();
+    metersRef.current.delete(id);
+    lastSpeechRef.current.delete(id);
+    if (mountedRef.current) setSpeakingIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : previous);
+  }, []);
+
+  const watchLevel = useCallback((id: string, stream: MediaStream) => {
+    unwatchLevel(id);
+    const track = stream.getAudioTracks()[0];
+    if (!track || typeof AudioContext === 'undefined') return;
+    try {
+      const context = audioContextRef.current || new AudioContext();
+      audioContextRef.current = context;
+      void context.resume().catch(() => {});
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      metersRef.current.set(id, { source, analyser, track });
+    } catch { /* Voice still works if the browser cannot measure audio levels. */ }
+  }, [unwatchLevel]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const speaking: string[] = [];
+      for (const [id, { analyser, track }] of metersRef.current) {
+        if (track.enabled && track.readyState === 'live') {
+          const samples = new Uint8Array(analyser.fftSize);
+          analyser.getByteTimeDomainData(samples);
+          let energy = 0;
+          for (const sample of samples) energy += ((sample - 128) / 128) ** 2;
+          if (Math.sqrt(energy / samples.length) > 0.025) lastSpeechRef.current.set(id, now);
+          if (now - (lastSpeechRef.current.get(id) || 0) < 240) speaking.push(id);
+        }
+      }
+      setSpeakingIds(previous => previous.length === speaking.length && previous.every(id => speaking.includes(id)) ? previous : speaking);
+    }, 120);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const closePeer = useCallback((id: string) => {
+    unwatchLevel(id);
     const pc = peersRef.current.get(id);
     if (pc) { pc.ontrack = null; pc.onicecandidate = null; pc.onconnectionstatechange = null; pc.close(); peersRef.current.delete(id); }
     const audio = audiosRef.current.get(id);
@@ -64,7 +111,7 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
       setConnected([...peersRef.current.values()].filter(peer => peer.connectionState === 'connected').length);
       setNeedsPlayback(blockedRef.current.size > 0);
     }
-  }, []);
+  }, [unwatchLevel]);
 
   const closeAllPeers = useCallback(() => { for (const id of [...peersRef.current.keys()]) closePeer(id); }, [closePeer]);
 
@@ -91,13 +138,15 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
     pc.ontrack = event => {
       let audio = audiosRef.current.get(id);
       if (!audio) { audio = new Audio(); audio.autoplay = true; audiosRef.current.set(id, audio); }
-      audio.srcObject = event.streams[0] || new MediaStream([event.track]);
+      const remoteStream = event.streams[0] || new MediaStream([event.track]);
+      audio.srcObject = remoteStream;
+      watchLevel(id, remoteStream);
       audio.volume = volumeRef.current / 100;
       audio.muted = speakersMutedRef.current;
       playAudio(id, audio);
     };
     return pc;
-  }, [closePeer, playAudio, socket, t.failed]);
+  }, [closePeer, playAudio, socket, t.failed, watchLevel]);
 
   const offerToPeer = useCallback(async (id: string) => {
     const stream = streamRef.current;
@@ -168,14 +217,18 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
       streamRef.current?.getTracks().forEach(track => { track.onended = null; track.stop(); });
       streamRef.current = null;
       closeAllPeers();
+      for (const id of [...metersRef.current.keys()]) unwatchLevel(id);
+      void audioContextRef.current?.close();
+      audioContextRef.current = null;
     };
-  }, [closeAllPeers, socket]);
+  }, [closeAllPeers, socket, unwatchLevel]);
 
   const leaveVoice = () => {
     socket?.emit('voice-state', false);
     streamRef.current?.getTracks().forEach(track => { track.onended = null; track.stop(); });
     streamRef.current = null;
     closeAllPeers();
+    unwatchLevel(selfId);
     setActive(false);
     setMuted(false);
     setError('');
@@ -192,6 +245,7 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       if (!mountedRef.current || !socket.connected || roomRef.current.id !== roomId) { stream.getTracks().forEach(track => track.stop()); return; }
       streamRef.current = stream;
+      watchLevel(selfId, stream);
       stream.getAudioTracks()[0].onended = () => leaveVoice();
       setActive(true);
       setMuted(false);
@@ -226,7 +280,11 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
   return <section className="panel voice-panel" aria-label={t.title}>
     <h3><Headphones size={18}/> {t.title} <span>{voiceCount}</span></h3>
     <p>{active ? t.active : t.alone}</p>
-    {voiceCount > 0 && <div className="voice-members">{room.participants.filter(person => person.voice).map(person => <span key={person.id}><span className="voice-member-dot"/>{person.name}</span>)}</div>}
+    {voiceCount > 0 && <div className="voice-members" aria-label={language === 'pt' ? 'Pessoas na chamada' : 'People in voice'}>{room.participants.filter(person => person.voice).map(person => <div className={`voice-member${speakingIds.includes(person.id) ? ' speaking' : ''}`} key={person.id}>
+      <span className={`voice-member-avatar ${person.role}`} aria-hidden="true">{person.name.trim().slice(0, 1).toUpperCase()}</span>
+      <span className="voice-member-name" title={person.name}>{person.name}{person.id === selfId && <span className="voice-self"> {language === 'pt' ? '(você)' : '(you)'}</span>}</span>
+      {person.id === selfId && muted && <MicOff size={14} className="voice-member-muted" aria-label={language === 'pt' ? 'Microfone silenciado' : 'Microphone muted'}/>}
+    </div>)}</div>}
     {!active ? <button className="primary voice-join" onClick={() => void joinVoice()} disabled={starting || !socket?.connected}><Mic size={17}/>{starting ? t.joining : t.join}</button> : <>
       <div className="voice-controls">
         <button className="icon-button" onClick={toggleMute} title={muted ? t.unmute : t.mute} aria-label={muted ? t.unmute : t.mute}>{muted ? <MicOff size={18}/> : <Mic size={18}/>}</button>
