@@ -54,11 +54,13 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
   const speakersMutedRef = useRef(speakersMuted);
   const mountedRef = useRef(true);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const silentOutputRef = useRef<GainNode | null>(null);
   const metersRef = useRef(new Map<string, { source: MediaStreamAudioSourceNode; analyser: AnalyserNode; track: MediaStreamTrack }>());
   const lastSpeechRef = useRef(new Map<string, number>());
 
   const unwatchLevel = useCallback((id: string) => {
     metersRef.current.get(id)?.source.disconnect();
+    metersRef.current.get(id)?.analyser.disconnect();
     metersRef.current.delete(id);
     lastSpeechRef.current.delete(id);
     if (mountedRef.current) setSpeakingIds(previous => previous.includes(id) ? previous.filter(value => value !== id) : previous);
@@ -72,10 +74,17 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
       const context = audioContextRef.current || new AudioContext();
       audioContextRef.current = context;
       void context.resume().catch(() => {});
+      if (!silentOutputRef.current) {
+        const silentOutput = context.createGain();
+        silentOutput.gain.value = 0;
+        silentOutput.connect(context.destination);
+        silentOutputRef.current = silentOutput;
+      }
       const source = context.createMediaStreamSource(stream);
       const analyser = context.createAnalyser();
       analyser.fftSize = 512;
       source.connect(analyser);
+      analyser.connect(silentOutputRef.current);
       metersRef.current.set(id, { source, analyser, track });
     } catch { /* Voice still works if the browser cannot measure audio levels. */ }
   }, [unwatchLevel]);
@@ -90,8 +99,8 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
           analyser.getByteTimeDomainData(samples);
           let energy = 0;
           for (const sample of samples) energy += ((sample - 128) / 128) ** 2;
-          if (Math.sqrt(energy / samples.length) > 0.025) lastSpeechRef.current.set(id, now);
-          if (now - (lastSpeechRef.current.get(id) || 0) < 240) speaking.push(id);
+          if (Math.sqrt(energy / samples.length) > 0.012) lastSpeechRef.current.set(id, now);
+          if (now - (lastSpeechRef.current.get(id) || 0) < 420) speaking.push(id);
         }
       }
       setSpeakingIds(previous => previous.length === speaking.length && previous.every(id => speaking.includes(id)) ? previous : speaking);
@@ -220,6 +229,7 @@ export function VoicePanel({ socket, room, selfId, language }: Props) {
       for (const id of [...metersRef.current.keys()]) unwatchLevel(id);
       void audioContextRef.current?.close();
       audioContextRef.current = null;
+      silentOutputRef.current = null;
     };
   }, [closeAllPeers, socket, unwatchLevel]);
 
